@@ -263,10 +263,14 @@ const pct = x => (x * 100).toLocaleString("el-GR", { maximumFractionDigits: 1, m
 const pctName = t => ({ "0.5": "50% + 1", "0.6": "60% + 1", "0.6667": "2/3 + 1", "0.7": "70% + 1", "0.75": "75% + 1", "0.8": "80% + 1" })[String(t)] || pct(t) + " + 1";
 let data, res, cur = 0, timer = null, order, rowEls = [];
 
-// the threshold picked in the header: { pct } from the list, or { abs } from the number box
+// the threshold picked in the header: { pct } from the list, or { abs } from the number box.
+// A blank or zero box keeps the last valid vote count.
+let lastAbs = 98;
 function getThr() {
   if ($("thr").value !== "abs") return { pct: Number($("thr").value) };
-  return { abs: Math.max(1, Math.round(Number($("thrN").value)) || 1) };
+  const v = Math.round(Number($("thrN").value));
+  if ($("thrN").value !== "" && v >= 1) lastAbs = v;
+  return { abs: lastAbs };
 }
 const thrName = th => th.abs != null ? `${th.abs} ψήφοι` : pctName(th.pct);
 
@@ -433,7 +437,8 @@ function thrChanged() {
   stop(); build();
 }
 $("thr").onchange = thrChanged;
-$("thrN").oninput = () => { if (Number($("thrN").value) >= 1) thrChanged(); };
+$("thrN").oninput = () => { if ($("thrN").value !== "" && Math.round(Number($("thrN").value)) >= 1) thrChanged(); };
+$("thrN").onchange = () => { $("thrN").value = getThr().abs ?? lastAbs; };
 window.addEventListener("resize", () => res && show(cur));
 
 // tooltip on segments
@@ -466,7 +471,7 @@ function apply(d, checkedAt) {
       $("thr").value = "abs"; $("thrN").value = h[2];
     } else {
       let t = String(d.threshold ?? 0.5);
-      if (h) t = String(Number(h[2]) / 100);
+      if (h && h[1] === "t" && Number(h[2]) >= 1 && Number(h[2]) <= 99) t = String(Number(h[2]) / 100);
       // #t67 means the 2/3 option
       const near = [...$("thr").options].find(o => o.value !== "abs" && Math.abs(Number(o.value) - Number(t)) < 0.005);
       if (near) t = near.value;
