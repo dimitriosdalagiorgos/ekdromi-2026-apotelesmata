@@ -56,6 +56,28 @@ const url = "file://" + path.join(__dirname, "..", "index.html");
     assert.match(await page.textContent("#leaderWhy"), /\(81 ψήφοι\) στον γύρο 5/);
   });
 
+  await check("stepping through the rounds with ▶ ends each step with the right bars, numbers and order", async () => {
+    await open("#n98");
+    for (let r = 2; r <= 5; r++) {
+      await page.click("#next");
+      await page.waitForFunction(() => painted === cur && !document.querySelector(".ghost") && !document.getAnimations().length);
+      const problems = await page.evaluate(() => {
+        const rd = res.rounds[cur], out = [];
+        const px = rowEls[order[0]].track.getBoundingClientRect().width / scale;
+        for (const i of order) {
+          const w = rowEls[i].chunks.reduce((s, c) => s + c.el.getBoundingClientRect().width, 0);
+          const want = rd.alive.has(i) ? rd.tot[i] * px : 0;
+          if (Math.abs(w - want) > 1.5) out.push(`bar ${i}: ${w.toFixed(1)}px, want ${want.toFixed(1)}px`);
+          if (Math.round(rowEls[i].shown) !== (rd.alive.has(i) ? rd.tot[i] : 0)) out.push(`number ${i}: ${rowEls[i].shown}`);
+        }
+        const tops = order.filter(i => rd.alive.has(i)).map(i => [rd.tot[i], rowEls[i].row.getBoundingClientRect().top]).sort((a, b) => a[1] - b[1]);
+        for (let k = 1; k < tops.length; k++) if (tops[k][0] > tops[k - 1][0]) out.push("rows not sorted by votes");
+        return out;
+      });
+      assert.deepStrictEqual(problems, [], `round ${r}`);
+    }
+  });
+
   await check("no JavaScript errors", async () => {
     assert.deepStrictEqual(errors, []);
   });
