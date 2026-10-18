@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="el">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Εκδρομή Γ' Λυκείου 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Commissioner:wght@400;500;700;800&family=Roboto+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: departures board on top (who leads), then the round-by-round chart with step/play controls, then the full table. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --ink: #15202e; --muted: #5b6878; --line: #d9dfe7; --track: #eef1f5;
+  --accent: #1f5fbf; --win: #127a4b; --win-soft: #d6efe2; --out: #a3adba;
+  --board: #0f1a28; --board-ink: #f2c94c; --board-sub: #d7deea; --board-muted: #9fb0c6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300;
+  --font-display: "Commissioner", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Commissioner", "Segoe UI", system-ui, sans-serif;
+  --font-data: "Roboto Mono", ui-monospace, "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141e; --panel: #152030; --ink: #e8edf4; --muted: #97a4b5; --line: #26354a; --track: #1b2839;
+    --accent: #7fb0ff; --win: #5fd39b; --win-soft: #143a2a; --out: #5c6a7d; --board: #070c13;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141e; --panel: #152030; --ink: #e8edf4; --muted: #97a4b5; --line: #26354a; --track: #1b2839;
+  --accent: #7fb0ff; --win: #5fd39b; --win-soft: #143a2a; --out: #5c6a7d; --board: #070c13;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(26px, 4.5vw, 38px); font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 19px; font-weight: 700; }
+.eyebrow { font-family: var(--font-data); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+header { display: grid; gap: 6px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 14px; align-items: center; }
+.meta b { color: var(--ink); font-family: var(--font-data); font-weight: 500; }
+.status { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--win); }
+select, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.4; cursor: default; }
+
+.board { background: var(--board); color: var(--board-ink); border-radius: 10px; padding: 22px 24px; display: grid; gap: 10px; }
+.board .eyebrow { color: var(--board-muted); }
+.board .dest { font-family: var(--font-data); font-weight: 700; font-size: clamp(20px, 3.6vw, 30px); line-height: 1.25; overflow-wrap: anywhere; }
+.board .why { color: var(--board-sub); font-size: 15px; }
+.board .why b { color: var(--board-ink); font-family: var(--font-data); font-weight: 500; }
+
+section { display: grid; gap: 12px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+
+/* round chart */
+.chart { padding: 18px 18px 14px; display: grid; gap: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.roundlabel { font-family: var(--font-data); font-weight: 700; font-size: 15px; min-width: 9ch; text-align: center; }
+.controls .spacer { flex: 1; }
+.dots { display: flex; gap: 6px; }
+.dots button { width: 30px; padding: 4px 0; font-family: var(--font-data); font-size: 13px; }
+.dots button[aria-current="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.story { min-height: 3em; font-size: 15px; max-width: 75ch; }
+.story b { font-family: var(--font-data); font-weight: 500; }
+.rows { position: relative; display: grid; gap: 10px; }
+.row { display: grid; grid-template-columns: minmax(150px, 32%) 1fr; gap: 12px; align-items: center; transition: opacity .5s; }
+.row.gone { opacity: .45; }
+.row .lab { min-width: 0; font-weight: 500; font-size: 14px; line-height: 1.3; }
+.row .lab small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+.row.win .lab { color: var(--win); }
+.track { position: relative; height: 26px; }
+.bar { position: absolute; inset: 0; display: flex; height: 100%; }
+.seg { flex: none; }
+.seg { height: 100%; width: 0; transition: width .8s cubic-bezier(.4,.1,.2,1); box-shadow: inset -2px 0 0 var(--panel); }
+.seg:last-child { box-shadow: none; border-radius: 0 4px 4px 0; }
+.val { position: absolute; top: 50%; transform: translateY(-50%); font-family: var(--font-data); font-size: 13px; white-space: nowrap; transition: left .8s cubic-bezier(.4,.1,.2,1); padding-left: 8px; }
+.val .p { color: var(--muted); margin-left: 6px; }
+.val .chip { margin-left: 8px; }
+.thr { position: absolute; top: -6px; bottom: -6px; border-left: 2px dashed var(--ink); opacity: .55; transition: left .8s; pointer-events: none; }
+.thrlab { position: absolute; top: -22px; transform: translateX(-50%); font-family: var(--font-data); font-size: 11px; color: var(--muted); white-space: nowrap; transition: left .8s; }
+.plot { position: relative; padding-top: 18px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.chip { display: inline-block; font-family: var(--font-data); font-size: 11px; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 999px; vertical-align: 1px; }
+.chip.win { background: var(--win-soft); color: var(--win); }
+.chip.out { background: var(--line); color: var(--muted); }
+.tip { position: fixed; z-index: 5; pointer-events: none; background: var(--ink); color: var(--panel); font-size: 13px; padding: 6px 9px; border-radius: 6px; max-width: 260px; }
+
+/* table */
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-family: var(--font-data); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+td.name { font-weight: 500; min-width: 200px; }
+td.n { font-family: var(--font-data); font-size: 14px; white-space: nowrap; }
+td.n small { display: block; color: var(--muted); font-size: 12px; }
+td.n .plus { color: var(--win); }
+td.n.cut { color: var(--out); text-decoration: line-through; }
+td.n.na { color: var(--out); }
+th.cur, td.cur { background: var(--track); }
+tfoot td { color: var(--muted); font-size: 13px; }
+
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 70ch; }
+.note { color: var(--muted); font-size: 14px; max-width: 70ch; margin: 0; }
+@media (max-width: 560px) { .row { grid-template-columns: 1fr; gap: 4px; } }
+.source { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 14px; color: var(--muted); margin-top: 4px; }
+.source .warn { color: var(--ink); }
+#refresh[aria-busy="true"] { opacity: .6; cursor: progress; }
+@media (prefers-reduced-motion: reduce) { .seg, .val, .thr, .thrlab, .row { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Ταξινομική ψηφοφορία · Instant-runoff</span>
+    <h1>Εκδρομή Γ' Λυκείου 2026</h1>
+    <div class="meta">
+      <span class="status"><span class="dot"></span>Προσωρινά αποτελέσματα</span>
+      <span>Ψηφοδέλτια: <b id="nballots">–</b></span>
+      <span>Τελευταία ψήφος: <b id="lastVote">–</b></span>
+      <span>Τελευταίος έλεγχος: <b id="checked">–</b></span>
+      <label>Όριο νίκης:
+        <select id="thr">
+          <option value="0.5">50% + 1</option>
+          <option value="0.6">60% + 1</option>
+          <option value="0.6667">2/3 + 1</option>
+          <option value="0.7">70% + 1</option>
+          <option value="0.75">75% + 1</option>
+          <option value="0.8">80% + 1</option>
+        </select>
+      </label>
+    </div>
+    <div class="source">
+      <button id="refresh" type="button">↻ Ανανέωση</button>
+      <span id="srcMsg">Φόρτωση…</span>
+    </div>
+  </header>
+
+  <div class="board" aria-live="polite">
+    <span class="eyebrow" id="boardEyebrow">Προηγείται</span>
+    <div class="dest" id="leader">Φόρτωση…</div>
+    <div class="why" id="leaderWhy"></div>
+  </div>
+
+  <section>
+    <h2>Γύρος προς γύρο</h2>
+    <div class="panel chart">
+      <div class="controls">
+        <button id="prev" aria-label="Προηγούμενος γύρος">◀</button>
+        <span class="roundlabel" id="rlabel">Γύρος 1</span>
+        <button id="next" aria-label="Επόμενος γύρος">▶</button>
+        <button id="play">▶ Αναπαραγωγή</button>
+        <span class="spacer"></span>
+        <div class="dots" id="dots" role="group" aria-label="Μετάβαση σε γύρο"></div>
+      </div>
+      <div class="story" id="story"></div>
+      <div class="plot"><div class="rows" id="rows"></div></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Όλοι οι γύροι</h2>
+    <div class="panel scroll"><table id="table"></table></div>
+  </section>
+
+  <section>
+    <h2>Πώς μετράμε</h2>
+    <ol class="steps">
+      <li>Σε κάθε γύρο, κάθε ψηφοδέλτιο μετράει για τον προορισμό με την υψηλότερη θέση που είναι ακόμα στην κούρσα.</li>
+      <li>Νικητής είναι ο πρώτος προορισμός που ξεπερνά το όριο νίκης (τώρα <span id="thrText">50% + 1</span>) των ψήφων του γύρου.</li>
+      <li>Σε κάθε γύρο αποκλείεται ο προορισμός με τις λιγότερες ψήφους, και κάθε ψήφος του περνά στην επόμενη επιλογή του ψηφοφόρου. Η καταμέτρηση συνεχίζεται μέχρι να μείνουν δύο, ώστε να φαίνονται όλοι οι γύροι.</li>
+    </ol>
+    <p class="note">Τα χρώματα στις μπάρες δείχνουν την πρώτη προτίμηση των ψηφοφόρων. Έτσι φαίνεται από πού ήρθαν οι ψήφοι που μεταφέρθηκαν. Ισοπαλία στην τελευταία θέση: αποκλείεται όποιος είχε λιγότερες ψήφους στον προηγούμενο γύρο. Αν ισοβαθμούν παντού, αποκλείεται όποιος έχει χαμηλότερο σκορ κατάταξης (1η θέση = 1, 2η = ½, 3η = ¼ …). Μετράνε μόνο όσοι απάντησαν «Ναι» στο «Θα πας εκδρομή;».</p>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script type="application/json" id="snapshot">
+{"election":"Εκδρομή 2026","updated":"2026-10-17T15:10:00+03:00","lastVote":"2026-10-17T14:55:58+03:00","threshold":0.5,"candidates":["🇮🇹 VCE - FLR - ROM | ✈️🚢 | 650€","🇮🇹 ROM - NAP | 🚢🚢 | 550€","🇮🇹 ROM | ✈️✈️ | 450-600€","🇷🇸🇭🇺🇦🇹 BEG - BUD - VIE | 🚌 | 450€","🇷🇸🇭🇺🇦🇹 BEG - BUD - VIE | ✈️🚌 | 600€","🇭🇷 Δαλματικές ακτές | 🚌 |400€"],"ballots":["423156","312546","513426","513426","312546","312465","321546","523146","512346","312465","421356","634152","123456","321564","321546","325146","412365","314562","123564","623154","412356","512346","412356","621354","321456","214356","621354","321456","631245","512346","613254","613245","634251","312546","623154","614523","123654","321645","213456","613254","213654","312564","612354","321456","612354","614352","321546","641235","314652","421356","312465","615243","541236","612345","615243","531264","531246","512436","421356","326154","615342","615432","615243","412356","615342","412356","314256","325146","521346","132546","312456","521346","321645","321645","654132","456321","634251","231654","546132","634152","432156","132546","123456","612345","342516","312465","413265","213456","612354","534126","321654","615342","312645","516342","315264","564123","523146","213456","132456","416253","413562","213456","613452","421356","512364","432156","312546","412356","512436","213546","214356","312456","516342","514263"]}
+</script>
+<script>
+// Instant-runoff count. Runs every round until two destinations remain,
+// and reports the first round where someone passes the threshold.
+// ballots: strings, digit i = rank given to candidate i (1 = first choice).
+function runoff(n, ballotStrs, threshold) {
+  const prefs = ballotStrs.map(s => {
+    const ranks = [...s].map(Number);
+    return [...Array(n).keys()].filter(i => ranks[i] >= 1).sort((a, b) => ranks[a] - ranks[b]);
+  });
+  // tiebreak score over full rankings: 1st = 1, 2nd = 1/2, 3rd = 1/4, ...
+  const score = Array(n).fill(0);
+  for (const p of prefs) p.forEach((c, k) => { score[c] += Math.pow(2, -k); });
+
+  const alive = new Set([...Array(n).keys()]);
+  const rounds = [];
+  let winner = null, winRound = null;
+  while (true) {
+    const tot = Array(n).fill(0);
+    const by = Array.from({ length: n }, () => Array(n).fill(0)); // by[holder][first choice]
+    const holder = prefs.map(p => p.find(i => alive.has(i)));
+    let exhausted = 0;
+    prefs.forEach((p, b) => {
+      const h = holder[b];
+      if (h === undefined) { exhausted++; return; }
+      tot[h]++; by[h][p[0]]++;
+    });
+    const active = prefs.length - exhausted;
+    const need = Math.floor(active * threshold + 1e-9) + 1;
+    const round = { alive: new Set(alive), tot, by, holder, active, exhausted, need, eliminated: null, tieBroken: false };
+    rounds.push(round);
+    const ids = [...alive];
+    if (winner === null) {
+      const top = ids.filter(i => tot[i] >= need);
+      if (top.length) { winner = top[0]; winRound = rounds.length - 1; }
+    }
+    if (ids.length <= 2) break;
+    const min = Math.min(...ids.map(i => tot[i]));
+    const tied = ids.filter(i => tot[i] === min);
+    tied.sort((a, b) => {
+      for (let r = rounds.length - 2; r >= 0; r--) {
+        const d = rounds[r].tot[a] - rounds[r].tot[b];
+        if (d) return d;
+      }
+      return (score[a] - score[b]) || (b - a);
+    });
+    round.eliminated = tied[0];
+    round.tieBroken = tied.length > 1;
+    alive.delete(tied[0]);
+  }
+  // transfers into each round from the previous one's eliminated candidate
+  for (let r = 1; r < rounds.length; r++) {
+    const prev = rounds[r - 1], cur = rounds[r], gone = prev.eliminated;
+    const to = Array(n).fill(0); let ex = 0;
+    prev.holder.forEach((h, b) => {
+      if (h !== gone) return;
+      const nh = cur.holder[b];
+      if (nh === undefined) ex++; else to[nh]++;
+    });
+    cur.from = gone; cur.transfers = to; cur.toExhausted = ex;
+  }
+  const last = rounds[rounds.length - 1];
+  const leader = [...last.alive].reduce((a, b) => last.tot[b] > last.tot[a] ? b : a);
+  return { rounds, winner, winRound, leader, score };
+}
+if (typeof module !== "undefined") module.exports = { runoff };
+</script>
+<script>
+const COLORS = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6"].map(v => `var(${v})`);
+const $ = id => document.getElementById(id);
+const pct = x => (x * 100).toLocaleString("el-GR", { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + "%";
+const thrName = t => ({ "0.5": "50% + 1", "0.6": "60% + 1", "0.6667": "2/3 + 1", "0.7": "70% + 1", "0.75": "75% + 1", "0.8": "80% + 1" })[String(t)] || pct(t) + " + 1";
+let data, res, cur = 0, timer = null, order, rowEls = [];
+
+function split(c) { const [place, ...rest] = c.split("|").map(s => s.trim()); return { place, rest: rest.join(" · ") }; }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function build() {
+  const n = data.candidates.length;
+  res = runoff(n, data.ballots, Number($("thr").value));
+  order = [...Array(n).keys()].sort((a, b) => res.rounds[0].tot[b] - res.rounds[0].tot[a] || a - b);
+  $("thrText").textContent = thrName($("thr").value);
+
+  // board
+  const R = res.rounds;
+  if (res.winner != null) {
+    const r = R[res.winRound], v = r.tot[res.winner];
+    $("boardEyebrow").textContent = "Προηγείται";
+    $("leader").textContent = data.candidates[res.winner];
+    $("leaderWhy").innerHTML = "";
+    $("leaderWhy").append("Ξεπερνά το όριο (", el("b", null, thrName($("thr").value)), ") στον γύρο ", el("b", null, String(res.winRound + 1)),
+      " με ", el("b", null, `${v} / ${r.active}`), " ψήφους (", el("b", null, pct(v / r.active)), ").");
+  } else {
+    const last = R[R.length - 1], v = last.tot[res.leader];
+    $("boardEyebrow").textContent = "Κανείς δεν έφτασε το όριο";
+    $("leader").textContent = data.candidates[res.leader];
+    $("leaderWhy").innerHTML = "";
+    $("leaderWhy").append("Πρώτος στον τελικό γύρο με ", el("b", null, `${v} / ${last.active}`), " (", el("b", null, pct(v / last.active)),
+      "), κάτω από το όριο ", el("b", null, thrName($("thr").value)), ".");
+  }
+
+  // rows
+  const rows = $("rows"); rows.innerHTML = ""; rowEls = [];
+  for (const i of order) {
+    const { place, rest } = split(data.candidates[i]);
+    const row = el("div", "row"), lab = el("div", "lab", place);
+    if (rest) lab.append(el("small", null, rest));
+    const track = el("div", "track"), bar = el("div", "bar"), segs = [];
+    for (const o of order) {
+      const s = el("div", "seg"); s.style.background = COLORS[o];
+      s.dataset.holder = i; s.dataset.origin = o;
+      bar.append(s); segs[o] = s;
+    }
+    const val = el("div", "val");
+    track.append(bar, val); row.append(lab, track); rows.append(row);
+    rowEls[i] = { row, segs, val };
+  }
+  const thr = el("div", "thr"), thrlab = el("div", "thrlab");
+  rows.append(thr, thrlab);
+  rowEls.thr = thr; rowEls.thrlab = thrlab;
+
+  // dots
+  const dots = $("dots"); dots.innerHTML = "";
+  R.forEach((_, r) => { const b = el("button", null, String(r + 1)); b.onclick = () => { stop(); show(r); }; dots.append(b); });
+
+  // legend
+  const lg = $("legend"); lg.innerHTML = ""; lg.append(el("span", null, "1η προτίμηση:"));
+  for (const o of order) { const s = el("span"); const sw = el("i"); sw.style.background = COLORS[o]; s.append(sw, split(data.candidates[o]).place + " " + (split(data.candidates[o]).rest.split(" · ")[0] || "")); lg.append(s); }
+
+  table();
+  cur = Math.min(cur, R.length - 1);
+  show(cur);
+}
+
+function show(r) {
+  cur = r;
+  const R = res.rounds, rd = R[r], n = data.candidates.length, scale = data.ballots.length;
+  // the track starts after the label column; compute positions in % of track width
+  const trackOf = i => rowEls[i].segs[0].parentElement.parentElement;
+  for (const i of order) {
+    const { row, segs, val } = rowEls[i];
+    const alive = rd.alive.has(i);
+    for (const o of order) segs[o].style.width = (alive ? rd.by[i][o] / scale * 100 : 0) + "%";
+    const v = alive ? rd.tot[i] : 0;
+    val.style.left = (v / scale * 100) + "%";
+    val.innerHTML = "";
+    if (alive) {
+      val.append(String(v), el("span", "p", pct(rd.active ? v / rd.active : 0)));
+      if (rd.eliminated === i) val.append(el("span", "chip out", "αποκλείεται"));
+      if (res.winner === i && r >= res.winRound) val.append(el("span", "chip win", "ΝΙΚΗΤΗΣ"));
+    } else {
+      const k = R.findIndex(x => x.eliminated === i);
+      val.append(el("span", "chip out", `αποκλείστηκε στον γύρο ${k + 1}`));
+    }
+    row.className = "row" + (alive ? "" : " gone") + (res.winner === i && r >= res.winRound ? " win" : "");
+  }
+  // threshold line, positioned over the track column
+  const t0 = trackOf(order[0]), host = $("rows");
+  const hb = host.getBoundingClientRect(), tb = t0.getBoundingClientRect();
+  const x = tb.left - hb.left + (rd.need - 0.5) / scale * tb.width;
+  rowEls.thr.style.left = x + "px"; rowEls.thrlab.style.left = x + "px";
+  rowEls.thrlab.textContent = `όριο: ${rd.need}`;
+
+  // story
+  const st = $("story"); st.innerHTML = "";
+  const name = i => split(data.candidates[i]).place + " " + (split(data.candidates[i]).rest.split(" · ")[0] || "");
+  if (r === 0) {
+    st.append("Μετράμε τις πρώτες προτιμήσεις των ", el("b", null, String(rd.active)), " ψηφοδελτίων. Για νίκη χρειάζονται ", el("b", null, String(rd.need)), " ψήφοι.");
+  } else {
+    const moves = order.filter(i => rd.transfers[i] > 0).map(i => `${name(i)} +${rd.transfers[i]}`);
+    st.append("Αποκλείστηκε το ", el("b", null, name(rd.from)), `. Οι ${R[r - 1].tot[rd.from]} ψήφοι του πήγαν: `, el("b", null, moves.join(", ") || "πουθενά"),
+      rd.toExhausted ? ` (${rd.toExhausted} χωρίς άλλη επιλογή)` : "", ".");
+  }
+  if (rd.eliminated != null && rd.tieBroken) st.append(" Ισοπαλία στην τελευταία θέση, λύθηκε με τον κανόνα ισοπαλίας.");
+  if (res.winner != null && r === res.winRound) st.append(" ", el("b", null, `Το ${name(res.winner)} ξεπερνά το όριο.`));
+
+  $("rlabel").textContent = `Γύρος ${r + 1} / ${R.length}`;
+  $("prev").disabled = r === 0; $("next").disabled = r === R.length - 1;
+  [...$("dots").children].forEach((b, k) => b.setAttribute("aria-current", k === r ? "true" : "false"));
+  document.querySelectorAll("#table [data-r]").forEach(c => c.classList.toggle("cur", Number(c.dataset.r) === r));
+}
+
+function table() {
+  const R = res.rounds, t = $("table"); t.innerHTML = "";
+  t.style.minWidth = (220 + R.length * 96) + "px";
+  const thead = el("thead"), hr = el("tr"); hr.append(el("th", null, "Προορισμός"));
+  R.forEach((_, r) => { const th = el("th", null, `Γύρος ${r + 1}`); th.dataset.r = r; hr.append(th); });
+  thead.append(hr); t.append(thead);
+  const tb = el("tbody");
+  for (const i of order) {
+    const tr = el("tr"); tr.append(el("td", "name", split(data.candidates[i]).place));
+    R.forEach((rd, r) => {
+      let td;
+      if (!rd.alive.has(i)) td = el("td", "n na", "—");
+      else {
+        td = el("td", "n" + (rd.eliminated === i ? " cut" : ""), String(rd.tot[i]));
+        const sub = el("small", null, pct(rd.tot[i] / rd.active));
+        if (r > 0 && rd.transfers[i]) { sub.append(" "); sub.append(el("span", "plus", "+" + rd.transfers[i])); }
+        td.append(sub);
+      }
+      td.dataset.r = r; tr.append(td);
+    });
+    tb.append(tr);
+  }
+  t.append(tb);
+  const f = el("tfoot"), fr = el("tr"); fr.append(el("td", null, "Όριο νίκης (ψήφοι)"));
+  R.forEach((rd, r) => { const td = el("td", "n", String(rd.need)); td.dataset.r = r; fr.append(td); });
+  f.append(fr); t.append(f);
+}
+
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "▶ Αναπαραγωγή"; }
+$("prev").onclick = () => { stop(); if (cur > 0) show(cur - 1); };
+$("next").onclick = () => { stop(); if (cur < res.rounds.length - 1) show(cur + 1); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (cur === res.rounds.length - 1) show(0);
+  $("play").textContent = "❚❚ Παύση";
+  timer = setInterval(() => { if (cur >= res.rounds.length - 1) return stop(); show(cur + 1); }, 1800);
+};
+document.addEventListener("keydown", e => {
+  if (!res || e.target.tagName === "SELECT") return;
+  if (e.key === "ArrowRight") $("next").click();
+  else if (e.key === "ArrowLeft") $("prev").click();
+  else if (/^[1-9]$/.test(e.key) && Number(e.key) <= res.rounds.length) { stop(); show(Number(e.key) - 1); }
+});
+$("thr").onchange = () => { stop(); build(); };
+window.addEventListener("resize", () => res && show(cur));
+
+// tooltip on segments
+const tip = $("tip");
+document.addEventListener("pointermove", e => {
+  const s = e.target.closest && e.target.closest(".seg");
+  if (!s || !res) { tip.hidden = true; return; }
+  const h = +s.dataset.holder, o = +s.dataset.origin, v = res.rounds[cur].by[h][o];
+  if (!v) { tip.hidden = true; return; }
+  const nm = i => split(data.candidates[i]).place + " " + (split(data.candidates[i]).rest.split(" · ")[0] || "");
+  tip.textContent = h === o ? `${v} ψήφοι με 1η προτίμηση αυτόν τον προορισμό` : `${v} ψήφοι που ήρθαν από ψηφοφόρους με 1η προτίμηση ${nm(o)}`;
+  tip.hidden = false;
+  tip.style.left = Math.min(e.clientX + 12, innerWidth - 270) + "px"; tip.style.top = (e.clientY + 14) + "px";
+});
+
+function when(d) {
+  return new Date(d).toLocaleString("el-GR", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function msg(text, warn) { const m = $("srcMsg"); m.textContent = text; m.className = warn ? "warn" : ""; }
+
+function apply(d, checkedAt) {
+  const first = !data;
+  data = d;
+  $("nballots").textContent = d.ballots.length;
+  $("lastVote").textContent = d.lastVote ? when(d.lastVote) : "–";
+  $("checked").textContent = when(checkedAt);
+  if (first) {
+    let t = String(d.threshold ?? 0.5);
+    const h = location.hash.match(/^#t(\d+)$/);
+    if (h) t = String(Number(h[1]) / 100);
+    if (![...$("thr").options].some(o => o.value === t)) $("thr").append(new Option(thrName(t), t));
+    $("thr").value = t;
+  }
+  build();
+}
+
+// 1) render the snapshot stored in the page, so something shows even without live access
+const SNAP = JSON.parse($("snapshot").textContent);
+try {
+  apply(SNAP, SNAP.updated);
+  msg("Αποθηκευμένα αποτελέσματα. Σύνδεση με το φύλλο…");
+} catch (e) {
+  $("leader").textContent = "Τα δεδομένα δεν φόρτωσαν";
+  $("leaderWhy").textContent = String(e && e.message || e);
+}
+
+// 2) read the summary sheet live (it is shared by link and holds only rankings, no names)
+const SHEET = "1fjGZkVxsEFA9dgaXOvFC99MxaIwzy4_7fVdZLCIqvYk";
+const GID_BALLOTS = 121567658, GID_META = 64494149;
+let busy = false;
+
+function csvUrl(gid, range, headers) {
+  return `https://docs.google.com/spreadsheets/d/${SHEET}/gviz/tq?tqx=out:csv&gid=${gid}&range=${range}&headers=${headers}&t=${Date.now()}`;
+}
+function parseCsv(text) {
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ",") { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += ch;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+async function getCsv(url) {
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const t = await r.text();
+  if (/^\s*</.test(t)) throw new Error("το φύλλο δεν είναι κοινόχρηστο με σύνδεσμο");
+  return parseCsv(t);
+}
+
+async function refresh() {
+  if (busy) return;
+  busy = true; $("refresh").setAttribute("aria-busy", "true"); msg("Ανάγνωση του φύλλου…");
+  try {
+    const [rows, meta] = await Promise.all([
+      getCsv(csvUrl(GID_BALLOTS, "D1:I", 1)),
+      getCsv(csvUrl(GID_META, "B1", 0)).catch(() => [])
+    ]);
+    const head = rows.shift() || [];
+    const candidates = head.map(h => h.replace(/^\s*Προορισμοί\s*\[/, "").replace(/\]\s*$/, "").trim());
+    if (candidates.length !== SNAP.candidates.length || candidates.some(c => !c)) throw new Error("άλλαξαν οι στήλες του φύλλου");
+    const ballots = rows
+      .map(r => r.slice(0, candidates.length).map(v => String(v).trim()))
+      .filter(r => r.every(v => /^[1-9]$/.test(v)))
+      .map(r => r.join(""));
+    const stamp = ((meta[0] || [])[0] || "").trim();
+    const lastVote = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(stamp) ? stamp : (data && data.lastVote) || SNAP.lastVote;
+    const before = data ? data.ballots.length : 0;
+    apply({ ...SNAP, candidates, ballots, lastVote }, new Date());
+    const diff = ballots.length - before;
+    msg("Ζωντανά από το φύλλο" + (diff > 0 && before ? ` · ${diff} νέ${diff === 1 ? "α ψήφος" : "ες ψήφοι"}` : ""));
+  } catch (e) {
+    msg("Η ανάγνωση του φύλλου απέτυχε (" + (e && e.message || e) + "). Εμφανίζονται τα τελευταία διαθέσιμα αποτελέσματα.", true);
+  } finally {
+    busy = false; $("refresh").removeAttribute("aria-busy");
+  }
+}
+$("refresh").onclick = refresh;
+refresh();
+</script>
+
+
