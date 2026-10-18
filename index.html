@@ -45,8 +45,9 @@ header { display: grid; gap: 6px; }
 .meta b { color: var(--ink); font-family: var(--font-data); font-weight: 500; }
 .status { display: inline-flex; align-items: center; gap: 6px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--win); }
-select, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
-button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#thrN { width: 7ch; font-family: var(--font-data); }
+select, button, input { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button:disabled { opacity: 0.4; cursor: default; }
 
 .board { background: var(--board); color: var(--board-ink); border-radius: 10px; padding: 22px 24px; display: grid; gap: 10px; }
@@ -133,7 +134,12 @@ tfoot td { color: var(--muted); font-size: 13px; }
           <option value="0.7">70% + 1</option>
           <option value="0.75">75% + 1</option>
           <option value="0.8">80% + 1</option>
+          <option value="abs">Αριθμός ψήφων…</option>
         </select>
+      </label>
+      <label id="thrNWrap" hidden>Τουλάχιστον
+        <input id="thrN" type="number" min="1" step="1" value="98" inputmode="numeric">
+        ψήφοι
       </label>
     </div>
     <div class="source">
@@ -174,8 +180,8 @@ tfoot td { color: var(--muted); font-size: 13px; }
     <h2>Πώς μετράμε</h2>
     <ol class="steps">
       <li>Σε κάθε γύρο, κάθε ψηφοδέλτιο μετράει για τον προορισμό με την υψηλότερη θέση που είναι ακόμα στην κούρσα.</li>
-      <li>Νικητής είναι ο πρώτος προορισμός που ξεπερνά το όριο νίκης (τώρα <span id="thrText">50% + 1</span>) των ψήφων του γύρου.</li>
-      <li>Σε κάθε γύρο αποκλείεται ο προορισμός με τις λιγότερες ψήφους, και κάθε ψήφος του περνά στην επόμενη επιλογή του ψηφοφόρου. Η καταμέτρηση συνεχίζεται μέχρι να μείνουν δύο, ώστε να φαίνονται όλοι οι γύροι.</li>
+      <li>Νικητής είναι ο πρώτος προορισμός που φτάνει το όριο νίκης (τώρα <span id="thrText">50% + 1</span>). Το όριο είναι είτε ποσοστό των ψήφων του γύρου είτε σταθερός αριθμός ψήφων, π.χ. 98 = 70% των 140 μαθητών. Μόλις βγει νικητής η καταμέτρηση σταματά, και οι υπόλοιποι προορισμοί αποκλείονται.</li>
+      <li>Αν κανείς δεν φτάσει το όριο, αποκλείεται ο προορισμός με τις λιγότερες ψήφους, και κάθε ψήφος του περνά στην επόμενη επιλογή του ψηφοφόρου. Η καταμέτρηση συνεχίζεται μέχρι να μείνουν δύο.</li>
     </ol>
     <p class="note">Τα χρώματα στις μπάρες δείχνουν την πρώτη προτίμηση των ψηφοφόρων. Έτσι φαίνεται από πού ήρθαν οι ψήφοι που μεταφέρθηκαν. Ισοπαλία στην τελευταία θέση: αποκλείεται όποιος είχε λιγότερες ψήφους στον προηγούμενο γύρο. Αν ισοβαθμούν παντού, αποκλείεται όποιος έχει χαμηλότερο σκορ κατάταξης (1η θέση = 1, 2η = ½, 3η = ¼ …). Μετράνε μόνο όσοι απάντησαν «Ναι» στο «Θα πας εκδρομή;».</p>
   </section>
@@ -186,9 +192,10 @@ tfoot td { color: var(--muted); font-size: 13px; }
 {"election":"Εκδρομή 2026","updated":"2026-10-17T15:10:00+03:00","lastVote":"2026-10-17T14:55:58+03:00","threshold":0.5,"candidates":["🇮🇹 VCE - FLR - ROM | ✈️🚢 | 650€","🇮🇹 ROM - NAP | 🚢🚢 | 550€","🇮🇹 ROM | ✈️✈️ | 450-600€","🇷🇸🇭🇺🇦🇹 BEG - BUD - VIE | 🚌 | 450€","🇷🇸🇭🇺🇦🇹 BEG - BUD - VIE | ✈️🚌 | 600€","🇭🇷 Δαλματικές ακτές | 🚌 |400€"],"ballots":["423156","312546","513426","513426","312546","312465","321546","523146","512346","312465","421356","634152","123456","321564","321546","325146","412365","314562","123564","623154","412356","512346","412356","621354","321456","214356","621354","321456","631245","512346","613254","613245","634251","312546","623154","614523","123654","321645","213456","613254","213654","312564","612354","321456","612354","614352","321546","641235","314652","421356","312465","615243","541236","612345","615243","531264","531246","512436","421356","326154","615342","615432","615243","412356","615342","412356","314256","325146","521346","132546","312456","521346","321645","321645","654132","456321","634251","231654","546132","634152","432156","132546","123456","612345","342516","312465","413265","213456","612354","534126","321654","615342","312645","516342","315264","564123","523146","213456","132456","416253","413562","213456","613452","421356","512364","432156","312546","412356","512436","213546","214356","312456","516342","514263"]}
 </script>
 <script>
-// Instant-runoff count. Runs every round until two destinations remain,
-// and reports the first round where someone passes the threshold.
+// Instant-runoff count. Stops at the first round where someone reaches the threshold,
+// otherwise runs until two destinations remain.
 // ballots: strings, digit i = rank given to candidate i (1 = first choice).
+// threshold: { pct: 0.7 } = more than 70% of the round's votes, { abs: 98 } = at least 98 votes.
 function runoff(n, ballotStrs, threshold) {
   const prefs = ballotStrs.map(s => {
     const ranks = [...s].map(Number);
@@ -212,14 +219,12 @@ function runoff(n, ballotStrs, threshold) {
       tot[h]++; by[h][p[0]]++;
     });
     const active = prefs.length - exhausted;
-    const need = Math.floor(active * threshold + 1e-9) + 1;
+    const need = threshold.abs != null ? threshold.abs : Math.floor(active * threshold.pct + 1e-9) + 1;
     const round = { alive: new Set(alive), tot, by, holder, active, exhausted, need, eliminated: null, tieBroken: false };
     rounds.push(round);
     const ids = [...alive];
-    if (winner === null) {
-      const top = ids.filter(i => tot[i] >= need);
-      if (top.length) { winner = top[0]; winRound = rounds.length - 1; }
-    }
+    const top = ids.filter(i => tot[i] >= need).sort((a, b) => tot[b] - tot[a] || a - b);
+    if (top.length) { winner = top[0]; winRound = rounds.length - 1; break; }
     if (ids.length <= 2) break;
     const min = Math.min(...ids.map(i => tot[i]));
     const tied = ids.filter(i => tot[i] === min);
@@ -246,7 +251,7 @@ function runoff(n, ballotStrs, threshold) {
     cur.from = gone; cur.transfers = to; cur.toExhausted = ex;
   }
   const last = rounds[rounds.length - 1];
-  const leader = [...last.alive].reduce((a, b) => last.tot[b] > last.tot[a] ? b : a);
+  const leader = winner ?? [...last.alive].reduce((a, b) => last.tot[b] > last.tot[a] ? b : a);
   return { rounds, winner, winRound, leader, score };
 }
 if (typeof module !== "undefined") module.exports = { runoff };
@@ -255,17 +260,25 @@ if (typeof module !== "undefined") module.exports = { runoff };
 const COLORS = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6"].map(v => `var(${v})`);
 const $ = id => document.getElementById(id);
 const pct = x => (x * 100).toLocaleString("el-GR", { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + "%";
-const thrName = t => ({ "0.5": "50% + 1", "0.6": "60% + 1", "0.6667": "2/3 + 1", "0.7": "70% + 1", "0.75": "75% + 1", "0.8": "80% + 1" })[String(t)] || pct(t) + " + 1";
+const pctName = t => ({ "0.5": "50% + 1", "0.6": "60% + 1", "0.6667": "2/3 + 1", "0.7": "70% + 1", "0.75": "75% + 1", "0.8": "80% + 1" })[String(t)] || pct(t) + " + 1";
 let data, res, cur = 0, timer = null, order, rowEls = [];
+
+// the threshold picked in the header: { pct } from the list, or { abs } from the number box
+function getThr() {
+  if ($("thr").value !== "abs") return { pct: Number($("thr").value) };
+  return { abs: Math.max(1, Math.round(Number($("thrN").value)) || 1) };
+}
+const thrName = th => th.abs != null ? `${th.abs} ψήφοι` : pctName(th.pct);
 
 function split(c) { const [place, ...rest] = c.split("|").map(s => s.trim()); return { place, rest: rest.join(" · ") }; }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
 function build() {
   const n = data.candidates.length;
-  res = runoff(n, data.ballots, Number($("thr").value));
+  const th = getThr();
+  res = runoff(n, data.ballots, th);
   order = [...Array(n).keys()].sort((a, b) => res.rounds[0].tot[b] - res.rounds[0].tot[a] || a - b);
-  $("thrText").textContent = thrName($("thr").value);
+  $("thrText").textContent = thrName(th);
 
   // board
   const R = res.rounds;
@@ -274,15 +287,15 @@ function build() {
     $("boardEyebrow").textContent = "Προηγείται";
     $("leader").textContent = data.candidates[res.winner];
     $("leaderWhy").innerHTML = "";
-    $("leaderWhy").append("Ξεπερνά το όριο (", el("b", null, thrName($("thr").value)), ") στον γύρο ", el("b", null, String(res.winRound + 1)),
+    $("leaderWhy").append(th.abs != null ? "Φτάνει" : "Ξεπερνά", " το όριο (", el("b", null, thrName(th)), ") στον γύρο ", el("b", null, String(res.winRound + 1)),
       " με ", el("b", null, `${v} / ${r.active}`), " ψήφους (", el("b", null, pct(v / r.active)), ").");
   } else {
-    const last = R[R.length - 1], v = last.tot[res.leader];
+    const last = R[R.length - 1], v = last.tot[res.leader], gap = last.need - v;
     $("boardEyebrow").textContent = "Κανείς δεν έφτασε το όριο";
     $("leader").textContent = data.candidates[res.leader];
     $("leaderWhy").innerHTML = "";
     $("leaderWhy").append("Πρώτος στον τελικό γύρο με ", el("b", null, `${v} / ${last.active}`), " (", el("b", null, pct(v / last.active)),
-      "), κάτω από το όριο ", el("b", null, thrName($("thr").value)), ".");
+      "), κάτω από το όριο ", el("b", null, thrName(th)), ". Λείπ", gap === 1 ? "ει " : "ουν ", el("b", null, String(gap)), gap === 1 ? " ψήφος." : " ψήφοι.");
   }
 
   // rows
@@ -320,7 +333,9 @@ function build() {
 
 function show(r) {
   cur = r;
-  const R = res.rounds, rd = R[r], n = data.candidates.length, scale = data.ballots.length;
+  // a vote-count threshold can be above the number of ballots; widen the scale so its line stays on the track
+  const R = res.rounds, rd = R[r], n = data.candidates.length, scale = Math.max(data.ballots.length, ...R.map(x => x.need));
+  const out = i => rd.eliminated === i || (r === res.winRound && res.winner !== i);
   // the track starts after the label column; compute positions in % of track width
   const trackOf = i => rowEls[i].segs[0].parentElement.parentElement;
   for (const i of order) {
@@ -332,7 +347,7 @@ function show(r) {
     val.innerHTML = "";
     if (alive) {
       val.append(String(v), el("span", "p", pct(rd.active ? v / rd.active : 0)));
-      if (rd.eliminated === i) val.append(el("span", "chip out", "αποκλείεται"));
+      if (out(i)) val.append(el("span", "chip out", "αποκλείεται"));
       if (res.winner === i && r >= res.winRound) val.append(el("span", "chip win", "ΝΙΚΗΤΗΣ"));
     } else {
       const k = R.findIndex(x => x.eliminated === i);
@@ -358,7 +373,7 @@ function show(r) {
       rd.toExhausted ? ` (${rd.toExhausted} χωρίς άλλη επιλογή)` : "", ".");
   }
   if (rd.eliminated != null && rd.tieBroken) st.append(" Ισοπαλία στην τελευταία θέση, λύθηκε με τον κανόνα ισοπαλίας.");
-  if (res.winner != null && r === res.winRound) st.append(" ", el("b", null, `Το ${name(res.winner)} ξεπερνά το όριο.`));
+  if (res.winner != null && r === res.winRound) st.append(" ", el("b", null, `Το ${name(res.winner)} ${getThr().abs != null ? "φτάνει" : "ξεπερνά"} το όριο, η καταμέτρηση τελειώνει.`));
 
   $("rlabel").textContent = `Γύρος ${r + 1} / ${R.length}`;
   $("prev").disabled = r === 0; $("next").disabled = r === R.length - 1;
@@ -379,7 +394,8 @@ function table() {
       let td;
       if (!rd.alive.has(i)) td = el("td", "n na", "—");
       else {
-        td = el("td", "n" + (rd.eliminated === i ? " cut" : ""), String(rd.tot[i]));
+        const out = rd.eliminated === i || (r === res.winRound && res.winner !== i);
+        td = el("td", "n" + (out ? " cut" : ""), String(rd.tot[i]));
         const sub = el("small", null, pct(rd.tot[i] / rd.active));
         if (r > 0 && rd.transfers[i]) { sub.append(" "); sub.append(el("span", "plus", "+" + rd.transfers[i])); }
         td.append(sub);
@@ -404,12 +420,20 @@ $("play").onclick = () => {
   timer = setInterval(() => { if (cur >= res.rounds.length - 1) return stop(); show(cur + 1); }, 1800);
 };
 document.addEventListener("keydown", e => {
-  if (!res || e.target.tagName === "SELECT") return;
+  if (!res || e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
   if (e.key === "ArrowRight") $("next").click();
   else if (e.key === "ArrowLeft") $("prev").click();
   else if (/^[1-9]$/.test(e.key) && Number(e.key) <= res.rounds.length) { stop(); show(Number(e.key) - 1); }
 });
-$("thr").onchange = () => { stop(); build(); };
+// show the number box only for a vote-count threshold, and keep the choice in the link (#t70 or #n98)
+function thrChanged() {
+  $("thrNWrap").hidden = $("thr").value !== "abs";
+  const th = getThr();
+  try { history.replaceState(null, "", th.abs != null ? `#n${th.abs}` : `#t${Math.round(th.pct * 100)}`); } catch (e) {}
+  stop(); build();
+}
+$("thr").onchange = thrChanged;
+$("thrN").oninput = () => { if (Number($("thrN").value) >= 1) thrChanged(); };
 window.addEventListener("resize", () => res && show(cur));
 
 // tooltip on segments
@@ -437,11 +461,19 @@ function apply(d, checkedAt) {
   $("lastVote").textContent = d.lastVote ? when(d.lastVote) : "–";
   $("checked").textContent = when(checkedAt);
   if (first) {
-    let t = String(d.threshold ?? 0.5);
-    const h = location.hash.match(/^#t(\d+)$/);
-    if (h) t = String(Number(h[1]) / 100);
-    if (![...$("thr").options].some(o => o.value === t)) $("thr").append(new Option(thrName(t), t));
-    $("thr").value = t;
+    const h = location.hash.match(/^#([tn])(\d+)$/);
+    if (h && h[1] === "n" && Number(h[2]) >= 1) {
+      $("thr").value = "abs"; $("thrN").value = h[2];
+    } else {
+      let t = String(d.threshold ?? 0.5);
+      if (h) t = String(Number(h[2]) / 100);
+      // #t67 means the 2/3 option
+      const near = [...$("thr").options].find(o => o.value !== "abs" && Math.abs(Number(o.value) - Number(t)) < 0.005);
+      if (near) t = near.value;
+      else $("thr").insertBefore(new Option(pctName(t), t), $("thr").querySelector('[value="abs"]'));
+      $("thr").value = t;
+    }
+    $("thrNWrap").hidden = $("thr").value !== "abs";
   }
   build();
 }
