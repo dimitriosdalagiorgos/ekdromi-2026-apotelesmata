@@ -86,6 +86,8 @@ section { display: grid; gap: 12px; min-width: 0; }
 .thr { position: absolute; top: -6px; bottom: -6px; border-left: 2px dashed var(--ink); opacity: .55; transition: left .8s; pointer-events: none; }
 .thrlab { position: absolute; top: -22px; transform: translateX(-50%); font-family: var(--font-data); font-size: 11px; color: var(--muted); white-space: nowrap; transition: left .8s; }
 .plot { position: relative; padding-top: 18px; }
+.ghost { position: absolute; z-index: 2; pointer-events: none; box-shadow: inset -2px 0 0 var(--panel); will-change: transform; }
+.still .seg, .still .val, .still .row { transition: none !important; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
@@ -261,7 +263,12 @@ const COLORS = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6"].map(v => `var(${
 const $ = id => document.getElementById(id);
 const pct = x => (x * 100).toLocaleString("el-GR", { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + "%";
 const pctName = t => ({ "0.5": "50% + 1", "0.6": "60% + 1", "0.6667": "2/3 + 1", "0.7": "70% + 1", "0.75": "75% + 1", "0.8": "80% + 1" })[String(t)] || pct(t) + " + 1";
-let data, res, cur = 0, timer = null, order, rowEls = [];
+let data, res, cur = 0, order, rowEls = [], scale = 1, arrived = [];
+// animation state: token invalidates a running step, painted = round fully on screen, playRun = current play loop
+let token = 0, running = [], painted = null, playRun = 0, playing = false;
+const EASE = "cubic-bezier(.45,0,.2,1)";
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sleep = ms => new Promise(f => setTimeout(f, ms));
 
 // the threshold picked in the header: { pct } from the list, or { abs } from the number box.
 // A blank or zero box keeps the last valid vote count.
@@ -302,21 +309,35 @@ function build() {
       "), κάτω από το όριο ", el("b", null, thrName(th)), ". Λείπ", gap === 1 ? "ει " : "ουν ", el("b", null, String(gap)), gap === 1 ? " ψήφος." : " ψήφοι.");
   }
 
-  // rows
+  // rows. Each bar is built from chunks: the votes a destination received in one round, split by first
+  // preference. A destination in the race never loses votes, so new chunks always join at the end of its bar.
+  // a vote-count threshold can be above the number of ballots; widen the scale so its line stays on the track
+  scale = Math.max(data.ballots.length, ...R.map(x => x.need));
+  const origin = R[0].holder; // in round 1 everyone is in the race, so the holder is the first choice
+  arrived = []; // arrived[r][b] = the round in which ballot b reached the destination holding it in round r
+  R.forEach((rd, r) => { arrived[r] = rd.holder.map((h, b) => r > 0 && h !== undefined && R[r - 1].holder[b] === h ? arrived[r - 1][b] : r); });
+  const chunkMap = new Map();
+  R.forEach((rd, r) => rd.holder.forEach((h, b) => {
+    if (h === undefined || arrived[r][b] !== r) return;
+    const key = `${h}|${r}|${origin[b]}`;
+    if (!chunkMap.has(key)) chunkMap.set(key, { i: h, k: r, o: origin[b], d: 0 });
+    chunkMap.get(key).d++;
+  }));
   const rows = $("rows"); rows.innerHTML = ""; rowEls = [];
   for (const i of order) {
     const { place, rest } = split(data.candidates[i]);
     const row = el("div", "row"), lab = el("div", "lab", place);
     if (rest) lab.append(el("small", null, rest));
-    const track = el("div", "track"), bar = el("div", "bar"), segs = [];
-    for (const o of order) {
-      const s = el("div", "seg"); s.style.background = COLORS[o];
-      s.dataset.holder = i; s.dataset.origin = o;
-      bar.append(s); segs[o] = s;
+    const track = el("div", "track"), bar = el("div", "bar");
+    const chunks = [...chunkMap.values()].filter(c => c.i === i).sort((a, b) => a.k - b.k || order.indexOf(a.o) - order.indexOf(b.o));
+    for (const c of chunks) {
+      c.el = el("div", "seg"); c.el.style.background = COLORS[c.o];
+      c.el.dataset.holder = i; c.el.dataset.origin = c.o;
+      bar.append(c.el);
     }
     const val = el("div", "val");
     track.append(bar, val); row.append(lab, track); rows.append(row);
-    rowEls[i] = { row, segs, val };
+    rowEls[i] = { row, chunks, val, track, shown: 0 };
   }
   const thr = el("div", "thr"), thrlab = el("div", "thrlab");
   rows.append(thr, thrlab);
@@ -325,6 +346,7 @@ function build() {
   // dots
   const dots = $("dots"); dots.innerHTML = "";
   R.forEach((_, r) => { const b = el("button", null, String(r + 1)); b.onclick = () => { stop(); show(r); }; dots.append(b); });
+  stop(); cancel(); painted = null;
 
   // legend
   const lg = $("legend"); lg.innerHTML = ""; lg.append(el("span", null, "1η προτίμηση:"));
@@ -332,40 +354,191 @@ function build() {
 
   table();
   cur = Math.min(cur, R.length - 1);
-  show(cur);
+  show(cur, false);
 }
 
-function show(r) {
+// Show round r. Stepping one round forward animates the transfer (the eliminated bar's chunks fly to the
+// bars they join); any other jump moves the bars to their new widths. Returns when the animation ends.
+function show(r, animate = true) {
+  cancel();
+  const from = painted;
   cur = r;
-  // a vote-count threshold can be above the number of ballots; widen the scale so its line stays on the track
-  const R = res.rounds, rd = R[r], n = data.candidates.length, scale = Math.max(data.ballots.length, ...R.map(x => x.need));
-  const out = i => rd.eliminated === i || (r === res.winRound && res.winner !== i);
-  // the track starts after the label column; compute positions in % of track width
-  const trackOf = i => rowEls[i].segs[0].parentElement.parentElement;
-  for (const i of order) {
-    const { row, segs, val } = rowEls[i];
-    const alive = rd.alive.has(i);
-    for (const o of order) segs[o].style.width = (alive ? rd.by[i][o] / scale * 100 : 0) + "%";
-    const v = alive ? rd.tot[i] : 0;
-    val.style.left = (v / scale * 100) + "%";
-    val.innerHTML = "";
-    if (alive) {
-      val.append(String(v), el("span", "p", pct(rd.active ? v / rd.active : 0)));
-      if (out(i)) val.append(el("span", "chip out", "αποκλείεται"));
-      if (res.winner === i && r >= res.winRound) val.append(el("span", "chip win", "ΝΙΚΗΤΗΣ"));
-    } else {
-      const k = R.findIndex(x => x.eliminated === i);
-      val.append(el("span", "chip out", `αποκλείστηκε στον γύρο ${k + 1}`));
+  labels(r);
+  placeThr(r);
+  const motion = animate && !reduced();
+  if (motion && from === r - 1 && res.rounds[r - 1].eliminated != null) return travel(r);
+  paint(r, !motion);
+  painted = r;
+  return reorder(r, motion);
+}
+
+// stop any running animation; the caller paints the round it wants next
+function cancel() {
+  token++;
+  running.forEach(a => a.cancel()); running = [];
+  document.querySelectorAll("#rows .ghost").forEach(g => g.remove());
+  rowEls.forEach(e => e && (e.val.style.transition = ""));
+}
+const keep = a => { running.push(a); return a.finished.catch(() => {}); };
+
+// run fn with CSS transitions off, so widths jump instead of sliding
+function still(fn) {
+  const host = $("rows"); host.classList.add("still"); fn();
+  void host.offsetWidth; host.classList.remove("still");
+}
+
+const chunkW = (i, c, r) => res.rounds[r].alive.has(i) && c.k <= r ? c.d : 0;
+// where chunk c starts inside the bar of i in round r, in votes
+const chunkAt = (i, c, r) => { let s = 0; for (const x of rowEls[i].chunks) { if (x === c) break; s += chunkW(i, x, r); } return s; };
+const isOut = (i, r) => res.rounds[r].eliminated === i || (r === res.winRound && res.winner !== i);
+
+function paint(r, instant) {
+  const rd = res.rounds[r];
+  const apply = () => {
+    for (const i of order) {
+      const { row, chunks, val } = rowEls[i], alive = rd.alive.has(i);
+      for (const c of chunks) c.el.style.width = chunkW(i, c, r) / scale * 100 + "%";
+      val.style.left = (alive ? rd.tot[i] : 0) / scale * 100 + "%";
+      row.classList.toggle("gone", !alive);
+      row.classList.toggle("win", res.winner === i && r >= res.winRound);
     }
-    row.className = "row" + (alive ? "" : " gone") + (res.winner === i && r >= res.winRound ? " win" : "");
+  };
+  instant ? still(apply) : apply();
+  for (const i of order) countTo(i, rd.alive.has(i) ? rd.tot[i] : 0, r, instant ? 0 : 800, 0);
+}
+
+function renderVal(i, v, r) {
+  const rd = res.rounds[r], { val } = rowEls[i];
+  val.innerHTML = "";
+  if (!rd.alive.has(i)) {
+    const k = res.rounds.findIndex(x => x.eliminated === i);
+    val.append(el("span", "chip out", `αποκλείστηκε στον γύρο ${k + 1}`));
+    return;
   }
-  // threshold line, positioned over the track column
-  const t0 = trackOf(order[0]), host = $("rows");
-  const hb = host.getBoundingClientRect(), tb = t0.getBoundingClientRect();
+  const n = Math.round(v);
+  val.append(String(n), el("span", "p", pct(rd.active ? n / rd.active : 0)));
+  if (isOut(i, r)) val.append(el("span", "chip out", "αποκλείεται"));
+  if (res.winner === i && r >= res.winRound) val.append(el("span", "chip win", "ΝΙΚΗΤΗΣ"));
+}
+
+// count the number next to a bar from what it shows now up to `to`
+function countTo(i, to, r, dur, delay) {
+  const e = rowEls[i], from = e.shown, my = token;
+  if (!dur || from === to) { e.shown = to; renderVal(i, to, r); return; }
+  const t0 = performance.now() + delay;
+  const tick = now => {
+    if (my !== token) return;
+    const p = Math.min(1, Math.max(0, (now - t0) / dur));
+    const q = p < .5 ? 2 * p * p : 1 - Math.pow(2 - 2 * p, 2) / 2;
+    e.shown = p >= 1 ? to : from + (to - from) * q;
+    renderVal(i, e.shown, r);
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  renderVal(i, from, r);
+  requestAnimationFrame(tick);
+}
+
+// sort the rows by votes (out of the race at the bottom, latest out first) and slide them to their places
+function reorder(r, animate) {
+  const rd = res.rounds[r], outAt = i => res.rounds.findIndex(x => x.eliminated === i);
+  const pos = [...order].sort((a, b) => {
+    const A = rd.alive.has(a), B = rd.alive.has(b);
+    if (A !== B) return A ? -1 : 1;
+    return A ? rd.tot[b] - rd.tot[a] || order.indexOf(a) - order.indexOf(b) : outAt(b) - outAt(a);
+  });
+  const before = new Map(order.map(i => [i, rowEls[i].row.getBoundingClientRect().top]));
+  pos.forEach((i, k) => { rowEls[i].row.style.order = k; });
+  if (!animate) return Promise.resolve();
+  const moves = [];
+  for (const i of order) {
+    const dy = before.get(i) - rowEls[i].row.getBoundingClientRect().top;
+    if (Math.abs(dy) > 0.5) moves.push(keep(rowEls[i].row.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 650, easing: EASE })));
+  }
+  return Promise.all(moves);
+}
+
+// one round forward: the eliminated bar breaks into pieces (one per chunk it holds and bar it goes to),
+// each piece flies to the end of the bar it joins, and the numbers count up as the pieces arrive
+async function travel(r) {
+  const my = token, R = res.rounds, prev = R[r - 1], rd = R[r], g = prev.eliminated;
+  painted = null;
+  const host = $("rows"), hb = host.getBoundingClientRect();
+  const geo = i => { const t = rowEls[i].track.getBoundingClientRect(); return { x: t.left - hb.left, y: t.top - hb.top, w: t.width, h: t.height }; };
+  const G = geo(g), px = G.w / scale;
+
+  const pieces = new Map();
+  prev.holder.forEach((h, b) => {
+    if (h !== g) return;
+    const o = R[0].holder[b], to = rd.holder[b];
+    const src = rowEls[g].chunks.find(c => c.k === arrived[r - 1][b] && c.o === o);
+    const dst = to === undefined ? null : rowEls[to].chunks.find(c => c.k === r && c.o === o);
+    const key = `${rowEls[g].chunks.indexOf(src)}|${to}`;
+    if (!pieces.has(key)) pieces.set(key, { src, to, dst, o, n: 0 });
+    pieces.get(key).n++;
+  });
+  const list = [...pieces.values()].sort((a, b) =>
+    rowEls[g].chunks.indexOf(a.src) - rowEls[g].chunks.indexOf(b.src) || (a.to ?? 99) - (b.to ?? 99));
+  const recips = [...new Set(list.map(p => p.to).filter(t => t !== undefined))].sort((a, b) => rd.tot[b] - rd.tot[a]);
+  const delayOf = i => 200 + recips.indexOf(i) * 140, FLY = 950;
+
+  // the pieces take the place of the eliminated bar
+  const used = new Map(), filled = new Map();
+  for (const p of list) {
+    const s0 = chunkAt(g, p.src, r - 1) + (used.get(p.src) || 0);
+    used.set(p.src, (used.get(p.src) || 0) + p.n);
+    p.gh = el("div", "ghost");
+    Object.assign(p.gh.style, { left: G.x + s0 * px + "px", top: G.y + "px", width: p.n * px + "px", height: G.h + "px", background: COLORS[p.o] });
+    host.append(p.gh);
+    if (p.to === undefined) { p.done = keep(p.gh.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 600, delay: 200, fill: "forwards" })); continue; }
+    const D = geo(p.to), d0 = chunkAt(p.to, p.dst, r) + (filled.get(p.dst) || 0);
+    filled.set(p.dst, (filled.get(p.dst) || 0) + p.n);
+    const dx = D.x + d0 * px - (G.x + s0 * px), dy = D.y - G.y;
+    p.done = keep(p.gh.animate([{ transform: "translate(0, 0)" }, { transform: `translate(${dx}px, ${dy}px)` }],
+      { duration: FLY, delay: delayOf(p.to), easing: EASE, fill: "forwards" }));
+  }
+  still(() => {
+    for (const c of rowEls[g].chunks) c.el.style.width = "0%";
+    rowEls[g].val.style.left = "0%";
+  });
+  rowEls[g].row.classList.add("gone");
+  for (const i of order) {
+    if (recips.includes(i)) continue;
+    countTo(i, rd.alive.has(i) ? rd.tot[i] : 0, r, 0, 0);
+    rowEls[i].row.classList.toggle("win", res.winner === i && r >= res.winRound);
+  }
+  // each receiving bar: its label travels with the pieces and counts up, then the pieces become its new chunks
+  await Promise.all(recips.map(async i => {
+    const { val, chunks, row } = rowEls[i];
+    val.style.transition = `left ${FLY}ms ${EASE} ${delayOf(i)}ms`;
+    val.style.left = rd.tot[i] / scale * 100 + "%";
+    countTo(i, rd.tot[i], r, FLY, delayOf(i));
+    await Promise.all(list.filter(p => p.to === i).map(p => p.done));
+    if (my !== token) return;
+    still(() => { for (const c of chunks) c.el.style.width = chunkW(i, c, r) / scale * 100 + "%"; });
+    list.filter(p => p.to === i).forEach(p => p.gh.remove());
+    val.style.transition = "";
+    row.classList.toggle("win", res.winner === i && r >= res.winRound);
+  }));
+  await Promise.all(list.filter(p => p.to === undefined).map(p => p.done));
+  if (my !== token) return;
+  list.forEach(p => p.gh.remove());
+  painted = r;
+  await sleep(150);
+  if (my !== token) return;
+  return reorder(r, true);
+}
+
+// threshold line, positioned over the track column
+function placeThr(r) {
+  const rd = res.rounds[r], host = $("rows");
+  const hb = host.getBoundingClientRect(), tb = rowEls[order[0]].track.getBoundingClientRect();
   const x = tb.left - hb.left + (rd.need - 0.5) / scale * tb.width;
   rowEls.thr.style.left = x + "px"; rowEls.thrlab.style.left = x + "px";
   rowEls.thrlab.textContent = `όριο: ${rd.need}`;
+}
 
+function labels(r) {
+  const R = res.rounds, rd = R[r];
   // story
   const st = $("story"); st.innerHTML = "";
   const name = i => split(data.candidates[i]).place + " " + (split(data.candidates[i]).rest.split(" · ")[0] || "");
@@ -414,15 +587,21 @@ function table() {
   f.append(fr); t.append(f);
 }
 
-function stop() { clearInterval(timer); timer = null; $("play").textContent = "▶ Αναπαραγωγή"; }
+function stop() { playing = false; playRun++; $("play").textContent = "▶ Αναπαραγωγή"; }
+async function play() {
+  const me = ++playRun; playing = true;
+  $("play").textContent = "❚❚ Παύση";
+  if (cur === res.rounds.length - 1) { await show(0); await sleep(700); }
+  while (me === playRun && cur < res.rounds.length - 1) {
+    await show(cur + 1);
+    if (me !== playRun) return;
+    await sleep(900);
+  }
+  if (me === playRun) stop();
+}
 $("prev").onclick = () => { stop(); if (cur > 0) show(cur - 1); };
 $("next").onclick = () => { stop(); if (cur < res.rounds.length - 1) show(cur + 1); };
-$("play").onclick = () => {
-  if (timer) return stop();
-  if (cur === res.rounds.length - 1) show(0);
-  $("play").textContent = "❚❚ Παύση";
-  timer = setInterval(() => { if (cur >= res.rounds.length - 1) return stop(); show(cur + 1); }, 1800);
-};
+$("play").onclick = () => { playing ? stop() : play(); };
 document.addEventListener("keydown", e => {
   if (!res || e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
   if (e.key === "ArrowRight") $("next").click();
@@ -439,7 +618,9 @@ function thrChanged() {
 $("thr").onchange = thrChanged;
 $("thrN").oninput = () => { if ($("thrN").value !== "" && Math.round(Number($("thrN").value)) >= 1) thrChanged(); };
 $("thrN").onchange = () => { $("thrN").value = getThr().abs ?? lastAbs; };
-window.addEventListener("resize", () => res && show(cur));
+// redraw on a real width change only (phones fire resize while scrolling, which would cut an animation short)
+let lastW = innerWidth;
+window.addEventListener("resize", () => { if (!res || innerWidth === lastW) return; lastW = innerWidth; stop(); show(cur, false); });
 
 // tooltip on segments
 const tip = $("tip");
